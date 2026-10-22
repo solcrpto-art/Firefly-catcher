@@ -11,7 +11,8 @@
 <style>
 :root{
   --sky1:#ffe3cf; --sky2:#bda9ee; --ink:#2a2350; --fly:#e89b00; --rock:#5b5477;
-  --jar:#2a2350; --panel:rgba(255,255,255,.9); --accent:#5a3fd0; --onaccent:#fff;
+  --jar:#2a2350; --panel:rgba(255,255,255,.92); --accent:#5a3fd0; --onaccent:#fff;
+  --star:#ffffff; --moon:#fff6e0; --moth:#8a5fd0;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px);
@@ -19,50 +20,71 @@
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --sky1:#221c55; --sky2:#0a0922; --ink:#f3eeff; --fly:#ffd86b; --rock:#8a84ad;
-    --jar:#f3eeff; --panel:rgba(20,17,50,.92); --accent:#ffd86b; --onaccent:#1b1745;
+    --jar:#f3eeff; --panel:rgba(20,17,50,.93); --accent:#ffd86b; --onaccent:#1b1745;
+    --star:#ffffff; --moon:#fff1c4; --moth:#c9b6ff;
   }
 }
 :root[data-theme="dark"]{
   --sky1:#221c55; --sky2:#0a0922; --ink:#f3eeff; --fly:#ffd86b; --rock:#8a84ad;
-  --jar:#f3eeff; --panel:rgba(20,17,50,.92); --accent:#ffd86b; --onaccent:#1b1745;
+  --jar:#f3eeff; --panel:rgba(20,17,50,.93); --accent:#ffd86b; --onaccent:#1b1745;
+  --star:#ffffff; --moon:#fff1c4; --moth:#c9b6ff;
 }
 html{height:100%; background:linear-gradient(var(--sky1),var(--sky2)); scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0; height:100%; position:relative; overflow:hidden; color:var(--ink);
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:transparent;
   -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent}
 canvas{position:absolute; inset:0; width:100%; height:100%; touch-action:none; display:block}
-#hud{position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between;
-  padding:14px 20px; font-size:26px; font-weight:700; pointer-events:none}
-#lives{letter-spacing:4px; color:var(--fly)}
+#hud{position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:flex-start;
+  padding:14px 20px; pointer-events:none}
+#score{font-size:28px; font-weight:700; line-height:1}
+#combo{font-size:15px; font-weight:600; margin-top:4px; min-height:18px; color:var(--fly)}
+#lvl{font-size:14px; font-weight:600; opacity:.8; padding-top:6px; text-align:center}
+#right{display:flex; flex-direction:column; align-items:flex-end; gap:8px}
+#lives{font-size:26px; font-weight:700; letter-spacing:4px; color:var(--fly); line-height:1}
+#pz{pointer-events:auto; font:inherit; font-size:16px; font-weight:700; width:40px; height:40px; border-radius:50%;
+  border:2px solid var(--ink); background:transparent; color:var(--ink); cursor:pointer; opacity:.75}
+#pz:focus-visible,.opt:focus-visible,#panel button:focus-visible{outline:3px solid var(--ink); outline-offset:3px}
 #panel{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:min(86%,340px);
   background:var(--panel); border-radius:22px; padding:26px 22px; text-align:center;
   box-shadow:0 8px 30px rgba(0,0,0,.25)}
 #panel h1{margin:0 0 10px; font-size:28px; line-height:1.15}
 #panel p{margin:0 0 20px; font-size:16px; line-height:1.45}
-#panel button{font:inherit; font-size:18px; font-weight:700; border:0; border-radius:14px;
+#btn{font:inherit; font-size:18px; font-weight:700; border:0; border-radius:14px;
   padding:14px 34px; background:var(--accent); color:var(--onaccent); cursor:pointer}
-#panel button:focus-visible{outline:3px solid var(--ink); outline-offset:3px}
+.opts{display:flex; gap:8px; justify-content:center; margin-top:16px}
+.opt{font:inherit; font-size:14px; font-weight:600; border-radius:12px; padding:8px 12px; cursor:pointer;
+  border:2px solid var(--ink); background:transparent; color:var(--ink)}
+.opt[aria-pressed="false"]{opacity:.5}
 .hide{display:none!important}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="hud"><span id="score">0</span><span id="lives"></span></div>
+<div id="hud">
+  <div><div id="score">0</div><div id="combo"></div></div>
+  <div id="lvl"></div>
+  <div id="right"><span id="lives"></span><button id="pz" aria-label="Пауза">Ⅱ</button></div>
+</div>
 <div id="panel">
   <h1 id="title">Ловец светлячков</h1>
-  <p id="text">Води банку пальцем и лови светлячков. Камни ловить нельзя. Пропущенный светлячок или пойманный камень отнимает жизнь.</p>
+  <p id="text">Води банку пальцем и лови светлячков. Камни и мотыльки отнимают жизнь, как и пропущенный светлячок. Золотой даёт +5, ♥ возвращает жизнь, ❄ замедляет время. Ловишь подряд — растёт множитель.</p>
   <button id="btn">Играть</button>
+  <div class="opts">
+    <button class="opt" id="snd" aria-pressed="true"></button>
+    <button class="opt" id="vib" aria-pressed="true"></button>
+  </div>
 </div>
 <script>
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
 const $=id=>document.getElementById(id);
-let W=0,H=0,T={},state='ready',score=0,lives=3,best=0,items=[],spawn=0,hurt=0,tx=0,last=0;
-const jar={x:0,w:76};
-try{best=+localStorage.getItem('firefly-best')||0}catch(e){}
+let W=0,H=0,T={},state='ready',score=0,lives=3,best=0,items=[],parts=[],stars=[],spawn=0,hurt=0,tx=0,last=0,
+    streak=0,caught=0,slow=0,glow=0,toast=0,toastTxt='',time=0;
+const jar={x:0,w:80}, keys={}, opt={snd:true,vib:true};
+try{best=+localStorage.getItem('firefly-best')||0; Object.assign(opt,JSON.parse(localStorage.getItem('firefly-opt')||'{}'))}catch(e){}
 
 function readTheme(){
   const cs=getComputedStyle(document.documentElement);
-  ['fly','rock','jar'].forEach(k=>T[k]=cs.getPropertyValue('--'+k).trim());
+  ['fly','rock','jar','ink','star','moon','moth'].forEach(k=>T[k]=cs.getPropertyValue(k==='ink'?'--ink':'--'+k).trim());
 }
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',readTheme);
 
@@ -72,99 +94,228 @@ function resize(){
   cv.width=W*d; cv.height=H*d;
   ctx.setTransform(d,0,0,d,0,0);
   if(!jar.x){jar.x=tx=W/2}
+  stars=Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*H*.8,r:Math.random()*1.3+.4,p:Math.random()*6.28}));
 }
 addEventListener('resize',resize);
 
-function setLives(){
+/* звук и вибрация */
+let ac=null;
+function tone(f,d,type,v,f2){
+  if(!opt.snd) return;
+  try{
+    ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+    if(ac.state==='suspended') ac.resume();
+    const o=ac.createOscillator(), g=ac.createGain(), t=ac.currentTime;
+    o.type=type||'sine'; o.frequency.setValueAtTime(f,t);
+    if(f2) o.frequency.exponentialRampToValueAtTime(f2,t+d);
+    g.gain.setValueAtTime(v||.1,t); g.gain.exponentialRampToValueAtTime(.001,t+d);
+    o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t+d);
+  }catch(e){}
+}
+const seq=(a,type)=>a.forEach((f,i)=>setTimeout(()=>tone(f,.14,type,.1),i*80));
+function vib(ms){ if(opt.vib) try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){} }
+function refreshOpts(){
+  $('snd').textContent='Звук: '+(opt.snd?'вкл':'выкл'); $('snd').setAttribute('aria-pressed',opt.snd);
+  $('vib').textContent='Вибрация: '+(opt.vib?'вкл':'выкл'); $('vib').setAttribute('aria-pressed',opt.vib);
+  try{localStorage.setItem('firefly-opt',JSON.stringify(opt))}catch(e){}
+}
+$('snd').onclick=()=>{opt.snd=!opt.snd; refreshOpts(); tone(660,.1,'sine',.1)};
+$('vib').onclick=()=>{opt.vib=!opt.vib; refreshOpts(); vib(30)};
+
+/* состояние */
+const mult=()=>Math.min(5,1+Math.floor(streak/5));
+const level=()=>1+Math.floor(caught/12);
+function ui(){
+  $('score').textContent=score;
   $('lives').textContent='♥'.repeat(lives)+'♡'.repeat(3-lives);
+  $('combo').textContent=streak>=2?'серия '+streak+(mult()>1?'  ×'+mult():''):'';
+  $('lvl').textContent=state==='ready'?'':'Уровень '+level()+(slow>0?' ❄':'');
+}
+function showPanel(title,text,btn){
+  $('title').textContent=title; $('text').textContent=text; $('btn').textContent=btn;
+  refreshOpts(); $('panel').classList.remove('hide');
 }
 function start(){
-  score=0; lives=3; items=[]; spawn=0.4; hurt=0; state='play';
-  $('score').textContent=0; setLives(); readTheme();
-  $('panel').classList.add('hide');
+  score=0; lives=3; items=[]; parts=[]; spawn=.4; hurt=0; streak=0; caught=0; slow=0; glow=0; toast=0;
+  state='play'; readTheme(); ui(); $('panel').classList.add('hide');
+  tone(440,.1,'sine',.08);
 }
+function pause(){
+  if(state==='play'){state='pause'; showPanel('Пауза','Счёт: '+score+'. Уровень '+level()+'.','Продолжить')}
+  else if(state==='pause') resume();
+}
+function resume(){state='play'; $('panel').classList.add('hide'); ui()}
 function end(){
   state='over';
-  if(score>best){best=score; try{localStorage.setItem('firefly-best',best)}catch(e){}}
-  $('title').textContent='Игра окончена';
-  $('text').textContent='Счёт: '+score+'. Рекорд: '+best+'.';
-  $('btn').textContent='Играть снова';
-  $('panel').classList.remove('hide');
+  const nb=score>best;
+  if(nb){best=score; try{localStorage.setItem('firefly-best',best)}catch(e){}}
+  showPanel(nb?'Новый рекорд!':'Игра окончена','Счёт: '+score+'. Рекорд: '+best+'.','Играть снова');
+  ui(); seq([392,330,262],'triangle');
 }
 function hit(){
-  lives--; hurt=0.3; setLives();
-  try{navigator.vibrate&&navigator.vibrate(60)}catch(e){}
+  lives--; streak=0; hurt=.3; vib(60); ui();
   if(lives<=0) end();
 }
+function burst(x,y,col,n){
+  for(let i=0;i<n&&parts.length<140;i++){
+    const a=Math.random()*6.283, s=40+Math.random()*120;
+    parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-30,life:.5+Math.random()*.4,max:.9,col});
+  }
+}
+function collect(it){
+  const t=it.type;
+  if(t==='rock'||t==='moth'){
+    burst(it.x,it.y,t==='rock'?T.rock:T.moth,12); tone(120,.3,'sawtooth',.13,50); hit(); return;
+  }
+  if(t==='fly'||t==='gold'){
+    const lv=level(); streak++; caught++; glow=1;
+    score+=(t==='gold'?5:1)*mult();
+    burst(it.x,it.y,t==='gold'?'#fff3b0':T.fly,t==='gold'?18:9);
+    if(t==='gold') seq([660,880,1320]); else tone(520+Math.min(streak,20)*25,.12,'sine',.12);
+    if(level()>lv){toastTxt='Уровень '+level(); toast=1.8; setTimeout(()=>seq([523,659,784],'triangle'),150)}
+    vib(12);
+  } else if(t==='heart'){
+    lives=Math.min(3,lives+1); burst(it.x,it.y,'#ff5a6e',14); seq([523,784]); vib(20);
+  } else if(t==='slow'){
+    slow=5; burst(it.x,it.y,'#6fd3ff',14); tone(700,.45,'sine',.12,180); vib(20);
+  }
+  ui();
+}
 function addItem(){
-  const rock=Math.random()<Math.min(0.22+score*0.004,0.4);
-  const r=rock?16+Math.random()*8:11;
-  items.push({
-    x:r+10+Math.random()*(W-2*r-20), y:-r, r, rock,
-    shape:rock?Array.from({length:7},()=>0.78+Math.random()*0.22):null,
-    ph:Math.random()*6.28
-  });
+  const lv=level(), r0=Math.random();
+  const pr=Math.min(.16+lv*.03,.36), pm=lv>=3?Math.min(.05+lv*.01,.14):0;
+  let type='fly';
+  if(r0<pr) type='rock'; else if(r0<pr+pm) type='moth';
+  else{
+    const b=Math.random();
+    if(b<.05) type='gold'; else if(b<.075&&lives<3) type='heart'; else if(b<.10) type='slow';
+  }
+  const r={rock:16+Math.random()*8,moth:15,gold:13,fly:11}[type]||13;
+  const x=r+60+Math.random()*Math.max(1,W-2*r-120);
+  items.push({type,x,x0:x,y:-r,r,ph:Math.random()*6.28,
+    shape:type==='rock'?Array.from({length:7},()=>.78+Math.random()*.22):null});
 }
 function update(dt){
+  time+=dt;
+  const dir=(keys.ArrowRight||keys.KeyD?1:0)-(keys.ArrowLeft||keys.KeyA?1:0);
+  if(dir) tx+=dir*560*dt;
+  tx=Math.max(jar.w/2,Math.min(W-jar.w/2,tx));
   jar.x+=(tx-jar.x)*Math.min(1,dt*18);
-  jar.x=Math.max(jar.w/2,Math.min(W-jar.w/2,jar.x));
+  if(glow>0) glow-=dt*1.4;
   if(hurt>0) hurt-=dt;
+  if(toast>0) toast-=dt;
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i]; p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=260*dt;
+    if(p.life<=0) parts.splice(i,1);
+  }
   if(state!=='play') return;
+  const lv=level(), sl=slow>0;
+  if(sl){slow-=dt; if(slow<=0) ui()}
   spawn-=dt;
-  if(spawn<=0){addItem(); spawn=Math.max(0.45,1-score*0.012)}
-  const speed=Math.min(150+score*5,430), jy=H-70;
+  if(spawn<=0){addItem(); spawn=Math.max(.42,.95-(lv-1)*.07)*(sl?1.4:1)}
+  const speed=Math.min(140+(lv-1)*26,420)*(sl?.55:1), jy=H-70;
   for(let i=items.length-1;i>=0;i--){
     const it=items[i];
-    it.y+=speed*dt; it.ph+=dt*6;
-    if(it.y+it.r>jy && it.y-it.r<jy+18 && Math.abs(it.x-jar.x)<jar.w/2+it.r*0.3){
-      items.splice(i,1);
-      if(it.rock) hit(); else {score++; $('score').textContent=score}
+    it.y+=speed*dt*(it.type==='moth'?.85:1); it.ph+=dt*6;
+    if(it.type==='moth') it.x=Math.max(it.r,Math.min(W-it.r,it.x0+Math.sin(it.ph*.5)*48));
+    if(it.y+it.r>jy && it.y-it.r<jy+18 && Math.abs(it.x-jar.x)<jar.w/2+it.r*.3){
+      items.splice(i,1); collect(it);
       if(state!=='play') return;
     } else if(it.y-it.r>H){
       items.splice(i,1);
-      if(!it.rock) hit();
+      if(it.type==='fly'){tone(220,.2,'triangle',.1,140); hit()}
       if(state!=='play') return;
     }
+  }
+}
+function wing(x,y,rx,ry,rot,col,a){
+  ctx.globalAlpha=a; ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(x,y,rx,ry,rot,0,6.283); ctx.fill(); ctx.globalAlpha=1;
+}
+function drawItem(it){
+  const {x,y,r,ph,type}=it;
+  if(type==='rock'){
+    ctx.fillStyle=T.rock; ctx.beginPath();
+    it.shape.forEach((k,j)=>{
+      const a=j/7*6.283+ph*.1, px=x+Math.cos(a)*r*k, py=y+Math.sin(a)*r*k;
+      j?ctx.lineTo(px,py):ctx.moveTo(px,py);
+    });
+    ctx.closePath(); ctx.fill();
+  } else if(type==='moth'){
+    const f=Math.sin(ph*2.5)*.4;
+    wing(x-11,y-3,11,6+f*4,-.5,T.moth,.85); wing(x+11,y-3,11,6+f*4,.5,T.moth,.85);
+    ctx.fillStyle=T.ink; ctx.beginPath(); ctx.ellipse(x,y,3.5,9,0,0,6.283); ctx.fill();
+  } else if(type==='heart'||type==='slow'){
+    const c=type==='heart'?'#ff5a6e':'#6fd3ff';
+    ctx.shadowColor=c; ctx.shadowBlur=16; ctx.fillStyle=c;
+    ctx.font='700 '+(r*2.3)+'px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(type==='heart'?'♥':'❄',x,y+1); ctx.shadowBlur=0;
+  } else {
+    const gold=type==='gold', col=gold?'#ff9d00':T.fly;
+    for(let k=1;k<=4;k++){ctx.globalAlpha=.2/k*1.6; ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,y-k*9,r*(1-k*.17),0,6.283); ctx.fill()}
+    ctx.globalAlpha=1;
+    const f=Math.sin(ph*3)*.5+.5;
+    wing(x-r*.8,y-5,7,3+f*3,-.6,'#fff',.55); wing(x+r*.8,y-5,7,3+f*3,.6,'#fff',.55);
+    ctx.shadowColor=col; ctx.shadowBlur=18+Math.sin(ph)*6;
+    ctx.fillStyle=gold?'#fffbe0':T.fly; ctx.beginPath(); ctx.arc(x,y,r,0,6.283); ctx.fill();
+    ctx.shadowBlur=0;
+    if(gold){ctx.strokeStyle='#ff9d00'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.arc(x,y,r+5+Math.sin(ph)*1.5,0,6.283); ctx.stroke()}
   }
 }
 function draw(){
   ctx.clearRect(0,0,W,H);
-  for(const it of items){
-    if(it.rock){
-      ctx.fillStyle=T.rock; ctx.beginPath();
-      it.shape.forEach((k,j)=>{
-        const a=j/7*6.283+it.ph*0.1, px=it.x+Math.cos(a)*it.r*k, py=it.y+Math.sin(a)*it.r*k;
-        j?ctx.lineTo(px,py):ctx.moveTo(px,py);
-      });
-      ctx.closePath(); ctx.fill();
-    } else {
-      ctx.shadowColor=T.fly; ctx.shadowBlur=18+Math.sin(it.ph)*6;
-      ctx.fillStyle=T.fly; ctx.beginPath();
-      ctx.arc(it.x,it.y,it.r,0,6.283); ctx.fill();
-      ctx.shadowBlur=0;
-    }
+  for(const s of stars){
+    ctx.globalAlpha=.3+.4*Math.sin(time*1.6+s.p); ctx.fillStyle=T.star;
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,6.283); ctx.fill();
   }
-  const jy=H-70, hw=jar.w/2;
-  ctx.fillStyle=T.jar; ctx.globalAlpha=0.9; ctx.beginPath();
-  ctx.moveTo(jar.x-hw,jy); ctx.lineTo(jar.x+hw,jy);
-  ctx.lineTo(jar.x+hw*0.8,jy+50); ctx.quadraticCurveTo(jar.x,jy+60,jar.x-hw*0.8,jy+50);
-  ctx.closePath(); ctx.fill(); ctx.globalAlpha=1;
-  ctx.fillRect(jar.x-hw-4,jy-6,jar.w+8,8);
-  if(hurt>0){ctx.fillStyle='rgba(220,60,60,'+Math.min(0.4,hurt*1.3)+')'; ctx.fillRect(0,0,W,H)}
+  ctx.globalAlpha=1;
+  ctx.shadowColor=T.moon; ctx.shadowBlur=36; ctx.fillStyle=T.moon;
+  ctx.beginPath(); ctx.arc(W*.2,Math.min(150,H*.2),24,0,6.283); ctx.fill(); ctx.shadowBlur=0;
+  if(slow>0){ctx.fillStyle='rgba(111,211,255,.09)'; ctx.fillRect(0,0,W,H)}
+  for(const it of items) drawItem(it);
+  for(const p of parts){
+    ctx.globalAlpha=Math.max(0,p.life/p.max); ctx.fillStyle=p.col;
+    ctx.beginPath(); ctx.arc(p.x,p.y,2.5,0,6.283); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  /* банка */
+  const jy=H-70, hw=jar.w/2, x=jar.x;
+  ctx.save(); ctx.beginPath();
+  ctx.moveTo(x-hw,jy); ctx.lineTo(x+hw,jy); ctx.lineTo(x+hw*.8,jy+50);
+  ctx.quadraticCurveTo(x,jy+60,x-hw*.8,jy+50); ctx.closePath();
+  ctx.globalAlpha=.14; ctx.fillStyle=T.jar; ctx.fill(); ctx.globalAlpha=1;
+  ctx.clip();
+  const g=ctx.createRadialGradient(x,jy+30,2,x,jy+30,hw+10);
+  g.addColorStop(0,T.fly); g.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.globalAlpha=Math.min(1,.28+Math.max(0,glow)*.7); ctx.fillStyle=g; ctx.fillRect(x-hw-10,jy,jar.w+20,70);
+  ctx.globalAlpha=.22; ctx.fillStyle='#fff'; ctx.fillRect(x-hw*.6,jy+4,5,40);
+  ctx.restore(); ctx.globalAlpha=1;
+  ctx.strokeStyle=T.jar; ctx.lineWidth=3; ctx.beginPath();
+  ctx.moveTo(x-hw,jy); ctx.lineTo(x-hw*.8,jy+50); ctx.quadraticCurveTo(x,jy+60,x+hw*.8,jy+50); ctx.lineTo(x+hw,jy); ctx.stroke();
+  ctx.fillStyle=T.jar; ctx.fillRect(x-hw-4,jy-6,jar.w+8,8);
+  if(hurt>0){ctx.fillStyle='rgba(220,60,60,'+Math.min(.4,hurt*1.3)+')'; ctx.fillRect(0,0,W,H)}
+  if(toast>0){
+    ctx.globalAlpha=Math.min(1,toast); ctx.fillStyle=T.ink; ctx.font='700 34px system-ui,sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(toastTxt,W/2,H*.3-(1.8-toast)*14); ctx.globalAlpha=1;
+  }
 }
 function loop(t){
-  const dt=Math.min(0.033,(t-last)/1000||0); last=t;
-  update(dt); draw(); requestAnimationFrame(loop);
+  const dt=Math.min(.033,(t-last)/1000||0); last=t;
+  if(state!=='pause') update(dt);
+  draw(); requestAnimationFrame(loop);
 }
 cv.addEventListener('pointerdown',e=>{tx=e.clientX});
 cv.addEventListener('pointermove',e=>{tx=e.clientX});
 addEventListener('keydown',e=>{
-  if(e.key==='ArrowLeft') tx-=40;
-  if(e.key==='ArrowRight') tx+=40;
+  keys[e.code]=true;
+  if(e.code==='KeyP'||e.code==='Escape'||(e.code==='Space'&&(state==='play'||state==='pause'))){e.preventDefault(); pause()}
 });
-$('btn').addEventListener('click',start);
+addEventListener('keyup',e=>{keys[e.code]=false});
+addEventListener('blur',()=>{for(const k in keys) keys[k]=false});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play') pause()});
+$('pz').addEventListener('click',pause);
+$('btn').addEventListener('click',()=>state==='pause'?resume():start());
 if(best>0) $('text').textContent+=' Твой рекорд: '+best+'.';
-resize(); readTheme(); requestAnimationFrame(loop);
+refreshOpts(); resize(); readTheme(); ui(); requestAnimationFrame(loop);
 if('serviceWorker' in navigator) addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 </script>
 </body>
