@@ -81,6 +81,7 @@ canvas{position:absolute; inset:0; width:100%; height:100%; touch-action:none; d
     <button class="opt" id="vib" aria-pressed="true"></button>
     <button class="opt" id="mode"></button>
     <button class="opt" id="skin"></button>
+    <button class="opt" id="world"></button>
     <button class="opt" id="lang"></button>
     <button class="opt hide" id="share"></button>
     <button class="opt hide" id="fin">Завершить</button>
@@ -92,8 +93,8 @@ const cv=document.getElementById('c'), ctx=cv.getContext('2d');
 const $=id=>document.getElementById(id);
 let W=0,H=0,T={},state='ready',score=0,lives=3,best=0,items=[],parts=[],stars=[],spawn=0,hurt=0,tx=0,last=0,
     streak=0,caught=0,slow=0,glow=0,toast=0,toastTxt='',time=0;
-const jar={x:0,y:0,w:80}, keys={}, opt={snd:true,vib:true,zen:false,skin:0,lang:''};
-let meta={total:0,d:'',prog:{},done:{}}, zen=false, ty=0, bestStreak=0;
+const jar={x:0,y:0,w:80}, keys={}, opt={snd:true,vib:true,zen:false,skin:0,lang:'',world:0};
+let meta={total:0,d:'',prog:{},done:{}}, zen=false, ty=0, bestStreak=0, tilt=0, lastW=0, swarmId=0, swc={};
 const SK=[{n:'jar',u:0},{n:'lamp',u:60},{n:'mug',u:200}];
 const QS=[{k:'caught',n:60},{k:'gold',n:3},{k:'streak',n:15},{k:'level',n:5},{k:'slow',n:2}];
 const dkey=()=>new Date().toLocaleDateString('sv');
@@ -155,9 +156,9 @@ addEventListener('resize',resize);
 
 /* языки */
 const I18={
-ru:{name:'Ловец светлячков',rules:'Води банку пальцем во все стороны и лови светлячков. Камни, мотыльки и пропущенный светлячок отнимают жизнь. Золотой даёт +5, ♥ возвращает жизнь, ❄ замедляет время. Лови подряд, и растёт множитель.',yourBest:n=>'Твой рекорд: '+n+'.',play:'Играть',pause:'Пауза',resume:'Продолжить',again:'Играть снова',finish:'Завершить',score:'Счёт',level:'Уровень',streak:'серия',best:'Рекорд',newBest:'Новый рекорд!',over:'Игра окончена',maxStreak:'Лучшая серия',sound:'Звук',on:'вкл',off:'выкл',vibration:'Вибрация',mode:'Режим',zen:'Дзен',normal:'Обычный',skin:'Вид',sk_jar:'Банка',sk_lamp:'Фонарик',sk_mug:'Кружка',daily:'Задания дня',qdone:'Задание выполнено!',hint:(n,u,t)=>'«'+n+'» откроется после '+u+' пойманных: сейчас '+t,q_caught:'Поймай 60 светлячков',q_gold:'Поймай 3 золотых',q_streak:'Серия из 15 подряд',q_level:'Дойди до 5 уровня',q_slow:'Поймай 2 снежинки ❄',share:'Поделиться',shareText:n=>'Я набрал '+n+' в «Ловце светлячков». Побей!',copied:'Скопировано!'},
-en:{name:'Firefly Catcher',rules:'Drag the jar in any direction and catch the fireflies. Rocks, moths and missed fireflies cost a life. Gold gives +5, ♥ restores a life, ❄ slows time. Catch in a row to grow the multiplier.',yourBest:n=>'Your best: '+n+'.',play:'Play',pause:'Paused',resume:'Resume',again:'Play again',finish:'Finish',score:'Score',level:'Level',streak:'streak',best:'Best',newBest:'New best!',over:'Game over',maxStreak:'Best streak',sound:'Sound',on:'on',off:'off',vibration:'Vibration',mode:'Mode',zen:'Zen',normal:'Normal',skin:'Look',sk_jar:'Jar',sk_lamp:'Lantern',sk_mug:'Mug',daily:'Daily quests',qdone:'Quest complete!',hint:(n,u,t)=>'«'+n+'» unlocks after '+u+' catches: now '+t,q_caught:'Catch 60 fireflies',q_gold:'Catch 3 golden ones',q_streak:'Get a streak of 15',q_level:'Reach level 5',q_slow:'Catch 2 snowflakes ❄',share:'Share',shareText:n=>'I scored '+n+' in Firefly Catcher. Beat me!',copied:'Copied!'},
-tr:{name:'Ateş Böceği Avcısı',rules:'Kavanozu her yöne sürükle ve ateş böceklerini yakala. Taşlar, güveler ve kaçırılan ateş böcekleri bir can götürür. Altın +5 verir, ♥ can yeniler, ❄ zamanı yavaşlatır. Art arda yakala, çarpan büyüsün.',yourBest:n=>'Rekorun: '+n+'.',play:'Oyna',pause:'Duraklatıldı',resume:'Devam',again:'Tekrar oyna',finish:'Bitir',score:'Skor',level:'Seviye',streak:'seri',best:'Rekor',newBest:'Yeni rekor!',over:'Oyun bitti',maxStreak:'En iyi seri',sound:'Ses',on:'açık',off:'kapalı',vibration:'Titreşim',mode:'Mod',zen:'Zen',normal:'Normal',skin:'Görünüm',sk_jar:'Kavanoz',sk_lamp:'Fener',sk_mug:'Kupa',daily:'Günün görevleri',qdone:'Görev tamamlandı!',hint:(n,u,t)=>'«'+n+'» '+u+' yakalamadan sonra açılır: şimdi '+t,q_caught:'60 ateş böceği yakala',q_gold:'3 altın yakala',q_streak:'15 art arda yakala',q_level:'5. seviyeye ulaş',q_slow:'2 kar tanesi ❄ yakala',share:'Paylaş',shareText:n=>'Ateş Böceği Avcısı\'nda '+n+' puan yaptım. Geç beni!',copied:'Kopyalandı!'}
+ru:{name:'Ловец светлячков',rules:'Води банку пальцем во все стороны и лови светлячков. Камни, мотыльки и пропущенный светлячок отнимают жизнь. Золотой даёт +5, ♥ возвращает жизнь, ❄ замедляет время. Лови подряд, и растёт множитель.',yourBest:n=>'Твой рекорд: '+n+'.',play:'Играть',pause:'Пауза',resume:'Продолжить',again:'Играть снова',finish:'Завершить',score:'Счёт',level:'Уровень',streak:'серия',best:'Рекорд',newBest:'Новый рекорд!',over:'Игра окончена',maxStreak:'Лучшая серия',sound:'Звук',on:'вкл',off:'выкл',vibration:'Вибрация',mode:'Режим',zen:'Дзен',normal:'Обычный',skin:'Вид',sk_jar:'Банка',sk_lamp:'Фонарик',sk_mug:'Кружка',daily:'Задания дня',qdone:'Задание выполнено!',hint:(n,u,t)=>'«'+n+'» откроется после '+u+' пойманных: сейчас '+t,q_caught:'Поймай 60 светлячков',q_gold:'Поймай 3 золотых',q_streak:'Серия из 15 подряд',q_level:'Дойди до 5 уровня',q_slow:'Поймай 2 снежинки ❄',share:'Поделиться',shareText:n=>'Я набрал '+n+' в «Ловце светлячков». Побей!',copied:'Скопировано!',swarm:'Рой! +10',world:'Мир',w0:'Авто',w1:'Классика',w2:'Лес',w3:'Море',w4:'Горы',w5:'Космос'},
+en:{name:'Firefly Catcher',rules:'Drag the jar in any direction and catch the fireflies. Rocks, moths and missed fireflies cost a life. Gold gives +5, ♥ restores a life, ❄ slows time. Catch in a row to grow the multiplier.',yourBest:n=>'Your best: '+n+'.',play:'Play',pause:'Paused',resume:'Resume',again:'Play again',finish:'Finish',score:'Score',level:'Level',streak:'streak',best:'Best',newBest:'New best!',over:'Game over',maxStreak:'Best streak',sound:'Sound',on:'on',off:'off',vibration:'Vibration',mode:'Mode',zen:'Zen',normal:'Normal',skin:'Look',sk_jar:'Jar',sk_lamp:'Lantern',sk_mug:'Mug',daily:'Daily quests',qdone:'Quest complete!',hint:(n,u,t)=>'«'+n+'» unlocks after '+u+' catches: now '+t,q_caught:'Catch 60 fireflies',q_gold:'Catch 3 golden ones',q_streak:'Get a streak of 15',q_level:'Reach level 5',q_slow:'Catch 2 snowflakes ❄',share:'Share',shareText:n=>'I scored '+n+' in Firefly Catcher. Beat me!',copied:'Copied!',swarm:'Swarm! +10',world:'World',w0:'Auto',w1:'Classic',w2:'Forest',w3:'Sea',w4:'Mountains',w5:'Space'},
+tr:{name:'Ateş Böceği Avcısı',rules:'Kavanozu her yöne sürükle ve ateş böceklerini yakala. Taşlar, güveler ve kaçırılan ateş böcekleri bir can götürür. Altın +5 verir, ♥ can yeniler, ❄ zamanı yavaşlatır. Art arda yakala, çarpan büyüsün.',yourBest:n=>'Rekorun: '+n+'.',play:'Oyna',pause:'Duraklatıldı',resume:'Devam',again:'Tekrar oyna',finish:'Bitir',score:'Skor',level:'Seviye',streak:'seri',best:'Rekor',newBest:'Yeni rekor!',over:'Oyun bitti',maxStreak:'En iyi seri',sound:'Ses',on:'açık',off:'kapalı',vibration:'Titreşim',mode:'Mod',zen:'Zen',normal:'Normal',skin:'Görünüm',sk_jar:'Kavanoz',sk_lamp:'Fener',sk_mug:'Kupa',daily:'Günün görevleri',qdone:'Görev tamamlandı!',hint:(n,u,t)=>'«'+n+'» '+u+' yakalamadan sonra açılır: şimdi '+t,q_caught:'60 ateş böceği yakala',q_gold:'3 altın yakala',q_streak:'15 art arda yakala',q_level:'5. seviyeye ulaş',q_slow:'2 kar tanesi ❄ yakala',share:'Paylaş',shareText:n=>'Ateş Böceği Avcısı\'nda '+n+' puan yaptım. Geç beni!',copied:'Kopyalandı!',swarm:'Sürü! +10',world:'Dünya',w0:'Otomatik',w1:'Klasik',w2:'Orman',w3:'Deniz',w4:'Dağlar',w5:'Uzay'}
 };
 function L(k,...x){const v=(I18[opt.lang]||I18.ru)[k]; return typeof v==='function'?v(...x):v}
 const homeFn=()=>[L('name'),L('rules')+(best>0?' '+L('yourBest',best):''),L('play')];
@@ -168,6 +169,38 @@ function applyLang(){
   refreshOpts(); ui();
 }
 function clampY(v){return Math.max(H*.45,Math.min(H-64,v))}
+/* миры и рой */
+const WD={
+ 2:{g:['#0a1a24','#17382f'],r:[['#0f2a25',.62,70,.012,.03,1],['#0b1f1d',.73,90,.009,.06,1],['#071513',.85,110,.007,.1,1]]},
+ 3:{g:['#071a3a','#0d4a6b'],r:[['#0e5a7a',.8,14,.02,.02,0,40],['#0a4562',.86,16,.015,.04,0,-30],['#06304a',.93,18,.012,.07,0,22]]},
+ 4:{g:['#2a1b4d','#c0607a'],r:[['#6b4a8f',.55,120,.006,.03,1],['#4a3270',.69,110,.008,.06,1],['#2d1f4d',.83,100,.01,.1,1]]},
+ 5:{g:['#05010f','#1a0b3a'],r:[]}
+};
+function curWorld(){return opt.world===0?[2,3,4,5][Math.floor((level()-1)/3)%4]:opt.world}
+function skyFill(w){
+  const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,WD[w].g[0]); g.addColorStop(1,WD[w].g[1]);
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  if(w===5) [[.25,.3,'rgba(120,60,200,.28)'],[.8,.55,'rgba(40,120,200,.22)']].forEach(([x,y,c],i)=>{
+    const px=W*x-(jar.x-W/2)*.02*(i+1), py=H*y, r=Math.max(W,H)*.5, q=ctx.createRadialGradient(px,py,0,px,py,r);
+    q.addColorStop(0,c); q.addColorStop(1,'rgba(0,0,0,0)'); ctx.fillStyle=q; ctx.fillRect(0,0,W,H);
+  });
+}
+function ridge(col,base,amp,fr,par,k,ts){
+  const off=-(jar.x-W/2)*par+time*(ts||0);
+  ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(0,H);
+  for(let x=0;x<=W+8;x+=8){
+    const u=(x+off)*fr, v=k?Math.abs(Math.sin(u))*.7+.3*Math.sin(u*.41+1):(Math.sin(u)+.5*Math.sin(u*2.3+1))*.35+.5;
+    ctx.lineTo(x,H*base-amp*v+amp*.4);
+  }
+  ctx.lineTo(W+8,H); ctx.closePath(); ctx.fill();
+}
+function swarm(){
+  const id=++swarmId, cx=80+Math.random()*(W-160), z=.7+Math.random()*.3;
+  for(let i=0;i<6;i++){
+    const an=i/6*6.283, x=cx+Math.cos(an)*26;
+    items.push({type:'fly',x,x0:x,y:-20-Math.sin(an)*26,r:11,ph:Math.random()*6.28,z,sw:id,shape:null});
+  }
+}
 /* звук и вибрация */
 let ac=null;
 function tone(f,d,type,v,f2){
@@ -188,6 +221,7 @@ function refreshOpts(){
   $('snd').textContent=L('sound')+': '+(opt.snd?L('on'):L('off')); $('snd').setAttribute('aria-pressed',opt.snd);
   $('vib').textContent=L('vibration')+': '+(opt.vib?L('on'):L('off')); $('vib').setAttribute('aria-pressed',opt.vib);
   $('mode').textContent=L('mode')+': '+(opt.zen?L('zen'):L('normal')); $('skin').textContent=L('skin')+': '+L('sk_'+SK[opt.skin].n);
+  $('world').textContent=L('world')+': '+L('w'+opt.world);
   $('lang').textContent='🌐 '+({ru:'Русский',en:'English',tr:'Türkçe'})[opt.lang]; renderQ();
   try{localStorage.setItem('firefly-opt',JSON.stringify(opt))}catch(e){}
 }
@@ -196,6 +230,7 @@ $('vib').onclick=()=>{opt.vib=!opt.vib; refreshOpts(); vib(30)};
 $('mode').onclick=()=>{if(state==='pause') return; opt.zen=!opt.zen; refreshOpts()};
 $('skin').onclick=()=>{for(let i=1;i<=3;i++){const c=(opt.skin+i)%3; if(meta.total>=SK[c].u){opt.skin=c; break}} refreshOpts()};
 $('fin').onclick=()=>{if(state==='pause') end()};
+$('world').onclick=()=>{opt.world=(opt.world+1)%6; refreshOpts()};
 $('lang').onclick=()=>{const l=['ru','en','tr']; opt.lang=l[(l.indexOf(opt.lang)+1)%3]; applyLang()};
 $('share').onclick=async()=>{
   const txt=L('shareText',score)+' '+location.href;
@@ -219,7 +254,7 @@ function showPanel(fn){
 }
 function start(){
   score=0; lives=3; items=[]; parts=[]; spawn=.4; hurt=0; streak=0; caught=0; slow=0; glow=0; toast=0;
-  bestStreak=0; zen=opt.zen; state='play'; readTheme(); ui(); $('panel').classList.add('hide');
+  bestStreak=0; swc={}; zen=opt.zen; state='play'; readTheme(); ui(); $('panel').classList.add('hide');
   tone(440,.1,'sine',.08);
 }
 function pause(){
@@ -251,7 +286,8 @@ function collect(it){
   }
   if(t==='fly'||t==='gold'){
     const lv=level(); streak++; caught++; glow=1;
-    score+=(t==='gold'?5:1)*mult(); bestStreak=Math.max(bestStreak,streak); meta.total++; q('caught',1); q('streak',streak,1); if(t==='gold') q('gold',1);
+    score+=(t==='gold'?5:1)*mult(); if(it.sw){swc[it.sw]=(swc[it.sw]||0)+1; if(swc[it.sw]===6){score+=10*mult(); toastTxt=L('swarm'); toast=1.8; seq([784,988,1319],'triangle')}}
+    bestStreak=Math.max(bestStreak,streak); meta.total++; q('caught',1); q('streak',streak,1); if(t==='gold') q('gold',1);
     burst(it.x,it.y,t==='gold'?'#fff3b0':T.fly,t==='gold'?18:9);
     if(t==='gold') seq([660,880,1320]); else tone(520+Math.min(streak,20)*25,.12,'sine',.12);
     if(level()>lv){toastTxt=L('level')+' '+level(); toast=1.8; setTimeout(()=>seq([523,659,784],'triangle'),150); q('level',level(),1)}
@@ -274,64 +310,9 @@ function addItem(){
   }
   const r={rock:16+Math.random()*8,moth:15,gold:13,fly:11}[type]||13;
   const x=r+60+Math.random()*Math.max(1,W-2*r-120);
-  items.push({type,x,x0:x,y:-r,r,ph:Math.random()*6.28,
+  items.push({type,x,x0:x,y:-r,r,ph:Math.random()*6.28,z:.6+Math.random()*.4,
     shape:type==='rock'?Array.from({length:7},()=>.78+Math.random()*.22):null});
 }
 function update(dt){
   time+=dt;
-  const dir=(keys.ArrowRight||keys.KeyD?1:0)-(keys.ArrowLeft||keys.KeyA?1:0);
-  if(dir) tx+=dir*560*dt;
-  tx=Math.max(jar.w/2,Math.min(W-jar.w/2,tx));
-  jar.x+=(tx-jar.x)*Math.min(1,dt*18);
-  const dy=(keys.ArrowDown||keys.KeyS?1:0)-(keys.ArrowUp||keys.KeyW?1:0);
-  if(dy) ty+=dy*420*dt; ty=clampY(ty); jar.y+=(ty-jar.y)*Math.min(1,dt*18);
-  if(glow>0) glow-=dt*1.4;
-  if(hurt>0) hurt-=dt;
-  if(toast>0) toast-=dt;
-  for(let i=parts.length-1;i>=0;i--){
-    const p=parts[i]; p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=260*dt;
-    if(p.life<=0) parts.splice(i,1);
-  }
-  if(state!=='play') return;
-  const lv=level(), sl=slow>0;
-  if(sl){slow-=dt; if(slow<=0) ui()}
-  spawn-=dt;
-  if(spawn<=0){addItem(); spawn=Math.max(.42,.95-(lv-1)*.07)*(sl?1.4:1)}
-  const speed=Math.min(140+(lv-1)*26,420)*(sl?.55:1), jy=jar.y;
-  for(let i=items.length-1;i>=0;i--){
-    const it=items[i];
-    it.y+=speed*dt*(it.type==='moth'?.85:1); it.ph+=dt*6;
-    if(it.type==='moth') it.x=Math.max(it.r,Math.min(W-it.r,it.x0+Math.sin(it.ph*.5)*48));
-    if(it.y+it.r>jy && it.y-it.r<jy+18 && Math.abs(it.x-jar.x)<jar.w/2+it.r*.3){
-      items.splice(i,1); collect(it);
-      if(state!=='play') return;
-    } else if(it.y-it.r>H){
-      items.splice(i,1);
-      if(it.type==='fly'){tone(220,.2,'triangle',.1,140); hit()}
-      if(state!=='play') return;
-    }
-  }
-}
-function wing(x,y,rx,ry,rot,col,a){
-  ctx.globalAlpha=a; ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(x,y,rx,ry,rot,0,6.283); ctx.fill(); ctx.globalAlpha=1;
-}
-function drawItem(it){
-  const {x,y,r,ph,type}=it;
-  if(type==='rock'){
-    ctx.fillStyle=T.rock; ctx.beginPath();
-    it.shape.forEach((k,j)=>{
-      const a=j/7*6.283+ph*.1, px=x+Math.cos(a)*r*k, py=y+Math.sin(a)*r*k;
-      j?ctx.lineTo(px,py):ctx.moveTo(px,py);
-    });
-    ctx.closePath(); ctx.fill();
-  } else if(type==='moth'){
-    const f=Math.sin(ph*2.5)*.4;
-    wing(x-11,y-3,11,6+f*4,-.5,T.moth,.85); wing(x+11,y-3,11,6+f*4,.5,T.moth,.85);
-    ctx.fillStyle=T.ink; ctx.beginPath(); ctx.ellipse(x,y,3.5,9,0,0,6.283); ctx.fill();
-  } else if(type==='heart'||type==='slow'){
-    const c=type==='heart'?'#ff5a6e':'#6fd3ff';
-    ctx.shadowColor=c; ctx.shadowBlur=16; ctx.fillStyle=c;
-    ctx.font='700 '+(r*2.3)+'px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(type==='heart'?'♥':'❄',x,y+1); ctx.shadowBlur=0;
-  } else {
-    const gold=type==='
+  const dir=(keys.ArrowRight|
