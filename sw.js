@@ -1,4 +1,4 @@
-const CACHE = "firefly-v1";
+const CACHE = "firefly-v2";
 const FILES = ["./", "index.html", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", (e) => {
@@ -15,9 +15,16 @@ self.addEventListener("activate", (e) => {
   self.clients.claim();
 });
 
+// Сначала сеть (чтобы обновления игры приходили сразу), офлайн — из кэша.
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   e.respondWith(
-    caches.match(e.request).then((hit) => hit || fetch(e.request))
+    fetch(e.request)
+      .then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
+        return res;
+      })
+      .catch(() => caches.match(e.request))
   );
 });
