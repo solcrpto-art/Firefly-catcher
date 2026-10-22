@@ -55,6 +55,12 @@ canvas{position:absolute; inset:0; width:100%; height:100%; touch-action:none; d
 .opt{font:inherit; font-size:14px; font-weight:600; border-radius:12px; padding:8px 12px; cursor:pointer;
   border:2px solid var(--ink); background:transparent; color:var(--ink)}
 .opt[aria-pressed="false"]{opacity:.5}
+#panel{max-height:88%; overflow:auto}
+.opts{flex-wrap:wrap}
+#quests{margin-top:16px; font-size:14px; line-height:1.55; text-align:left}
+#quests b{float:right}
+#quests .ok{color:var(--accent)}
+#quests .hint{opacity:.7; font-size:13px; margin-top:6px}
 .hide{display:none!important}
 </style>
 </head>
@@ -72,14 +78,60 @@ canvas{position:absolute; inset:0; width:100%; height:100%; touch-action:none; d
   <div class="opts">
     <button class="opt" id="snd" aria-pressed="true"></button>
     <button class="opt" id="vib" aria-pressed="true"></button>
+    <button class="opt" id="mode"></button>
+    <button class="opt" id="skin"></button>
+    <button class="opt hide" id="fin">Завершить</button>
   </div>
+  <div id="quests"></div>
 </div>
 <script>
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
 const $=id=>document.getElementById(id);
 let W=0,H=0,T={},state='ready',score=0,lives=3,best=0,items=[],parts=[],stars=[],spawn=0,hurt=0,tx=0,last=0,
     streak=0,caught=0,slow=0,glow=0,toast=0,toastTxt='',time=0;
-const jar={x:0,w:80}, keys={}, opt={snd:true,vib:true};
+const jar={x:0,w:80}, keys={}, opt={snd:true,vib:true,zen:false,skin:0};
+let meta={total:0,d:'',prog:{},done:{}}, zen=false;
+const SK=[{n:'Банка',u:0},{n:'Фонарик',u:60},{n:'Кружка',u:200}];
+const QS=[{k:'caught',n:60,t:'Поймай 60 светлячков'},{k:'gold',n:3,t:'Поймай 3 золотых'},{k:'streak',n:15,t:'Серия из 15 подряд'},{k:'level',n:5,t:'Дойди до 5 уровня'},{k:'slow',n:2,t:'Поймай 2 снежинки ❄'}];
+const dkey=()=>new Date().toLocaleDateString('sv');
+const todays=()=>{const n=Math.floor(Date.now()/864e5); return [0,2,4].map(i=>QS[(n+i)%5])};
+function saveMeta(){try{localStorage.setItem('firefly-meta',JSON.stringify(meta))}catch(e){}}
+function loadMeta(){
+  try{Object.assign(meta,JSON.parse(localStorage.getItem('firefly-meta')||'{}'))}catch(e){}
+  if(meta.d!==dkey()){meta.d=dkey(); meta.prog={}; meta.done={}}
+  if(!SK[opt.skin]||meta.total<SK[opt.skin].u) opt.skin=0;
+}
+function q(k,v,mx){
+  const t=todays().find(x=>x.k===k); if(!t||meta.done[k]) return;
+  meta.prog[k]=mx?Math.max(meta.prog[k]||0,v):(meta.prog[k]||0)+v;
+  if(meta.prog[k]>=t.n){meta.done[k]=1; toastTxt='Задание выполнено!'; toast=1.8; seq([659,784,1047],'triangle')}
+  saveMeta();
+}
+function renderQ(){
+  const nl=SK.find(x=>meta.total<x.u);
+  $('quests').innerHTML='<div style="font-weight:700;margin-bottom:4px">Задания дня</div>'+
+    todays().map(t=>{const p=Math.min(t.n,meta.prog[t.k]||0), ok=meta.done[t.k];
+      return '<div'+(ok?' class="ok"':'')+'>'+(ok?'✓ ':'')+t.t+' <b>'+p+'/'+t.n+'</b></div>'}).join('')+
+    (nl?'<div class="hint">«'+nl.n+'» откроется после '+nl.u+' пойманных: сейчас '+meta.total+'</div>':'');
+}
+function drawSkin(){
+  const jy=H-70, hw=jar.w/2, x=jar.x, s=opt.skin;
+  const path=()=>{
+    ctx.beginPath();
+    if(s===1){ctx.moveTo(x-hw+6,jy); ctx.lineTo(x+hw-6,jy); ctx.lineTo(x+hw,jy+52); ctx.lineTo(x-hw,jy+52)}
+    else{ctx.moveTo(x-hw,jy); ctx.lineTo(x+hw,jy); ctx.lineTo(x+hw*.85,jy+54); ctx.lineTo(x-hw*.85,jy+54)}
+    ctx.closePath();
+  };
+  ctx.save(); path(); ctx.globalAlpha=.14; ctx.fillStyle=T.jar; ctx.fill(); ctx.globalAlpha=1; ctx.clip();
+  const g=ctx.createRadialGradient(x,jy+30,2,x,jy+30,hw+10);
+  g.addColorStop(0,T.fly); g.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.globalAlpha=Math.min(1,.28+Math.max(0,glow)*.7); ctx.fillStyle=g; ctx.fillRect(x-hw-10,jy,jar.w+20,70);
+  ctx.restore(); ctx.globalAlpha=1;
+  ctx.strokeStyle=T.jar; ctx.lineWidth=3; path(); ctx.stroke();
+  ctx.fillStyle=T.jar;
+  if(s===1){ctx.fillRect(x-hw+2,jy-8,jar.w-4,8); ctx.beginPath(); ctx.arc(x,jy-8,hw*.6,Math.PI,0); ctx.stroke()}
+  else{ctx.fillRect(x-hw-3,jy-5,jar.w+6,6); ctx.beginPath(); ctx.arc(x+hw+2,jy+24,13,-1.4,1.4); ctx.stroke()}
+}
 try{best=+localStorage.getItem('firefly-best')||0; Object.assign(opt,JSON.parse(localStorage.getItem('firefly-opt')||'{}'))}catch(e){}
 
 function readTheme(){
@@ -117,43 +169,47 @@ function vib(ms){ if(opt.vib) try{navigator.vibrate&&navigator.vibrate(ms)}catch
 function refreshOpts(){
   $('snd').textContent='Звук: '+(opt.snd?'вкл':'выкл'); $('snd').setAttribute('aria-pressed',opt.snd);
   $('vib').textContent='Вибрация: '+(opt.vib?'вкл':'выкл'); $('vib').setAttribute('aria-pressed',opt.vib);
+  $('mode').textContent='Режим: '+(opt.zen?'Дзен':'Обычный'); $('skin').textContent='Вид: '+SK[opt.skin].n; renderQ();
   try{localStorage.setItem('firefly-opt',JSON.stringify(opt))}catch(e){}
 }
 $('snd').onclick=()=>{opt.snd=!opt.snd; refreshOpts(); tone(660,.1,'sine',.1)};
 $('vib').onclick=()=>{opt.vib=!opt.vib; refreshOpts(); vib(30)};
+$('mode').onclick=()=>{if(state==='pause') return; opt.zen=!opt.zen; refreshOpts()};
+$('skin').onclick=()=>{for(let i=1;i<=3;i++){const c=(opt.skin+i)%3; if(meta.total>=SK[c].u){opt.skin=c; break}} refreshOpts()};
+$('fin').onclick=()=>{if(state==='pause') end()};
 
 /* состояние */
 const mult=()=>Math.min(5,1+Math.floor(streak/5));
 const level=()=>1+Math.floor(caught/12);
 function ui(){
   $('score').textContent=score;
-  $('lives').textContent='♥'.repeat(lives)+'♡'.repeat(3-lives);
+  $('lives').textContent=zen?'∞':'♥'.repeat(lives)+'♡'.repeat(3-lives);
   $('combo').textContent=streak>=2?'серия '+streak+(mult()>1?'  ×'+mult():''):'';
   $('lvl').textContent=state==='ready'?'':'Уровень '+level()+(slow>0?' ❄':'');
 }
 function showPanel(title,text,btn){
   $('title').textContent=title; $('text').textContent=text; $('btn').textContent=btn;
-  refreshOpts(); $('panel').classList.remove('hide');
+  $('fin').classList.add('hide'); refreshOpts(); $('panel').classList.remove('hide');
 }
 function start(){
   score=0; lives=3; items=[]; parts=[]; spawn=.4; hurt=0; streak=0; caught=0; slow=0; glow=0; toast=0;
-  state='play'; readTheme(); ui(); $('panel').classList.add('hide');
+  zen=opt.zen; state='play'; readTheme(); ui(); $('panel').classList.add('hide');
   tone(440,.1,'sine',.08);
 }
 function pause(){
-  if(state==='play'){state='pause'; showPanel('Пауза','Счёт: '+score+'. Уровень '+level()+'.','Продолжить')}
+  if(state==='play'){state='pause'; showPanel('Пауза','Счёт: '+score+'. Уровень '+level()+'.','Продолжить'); $('fin').classList.toggle('hide',!zen); saveMeta()}
   else if(state==='pause') resume();
 }
 function resume(){state='play'; $('panel').classList.add('hide'); ui()}
 function end(){
   state='over';
-  const nb=score>best;
+  const nb=!zen&&score>best; saveMeta();
   if(nb){best=score; try{localStorage.setItem('firefly-best',best)}catch(e){}}
-  showPanel(nb?'Новый рекорд!':'Игра окончена','Счёт: '+score+'. Рекорд: '+best+'.','Играть снова');
+  showPanel(nb?'Новый рекорд!':'Игра окончена','Счёт: '+score+(zen?'.':'. Рекорд: '+best+'.'),'Играть снова');
   ui(); seq([392,330,262],'triangle');
 }
 function hit(){
-  lives--; streak=0; hurt=.3; vib(60); ui();
+  if(!zen) lives--; streak=0; hurt=.3; vib(60); ui();
   if(lives<=0) end();
 }
 function burst(x,y,col,n){
@@ -169,15 +225,15 @@ function collect(it){
   }
   if(t==='fly'||t==='gold'){
     const lv=level(); streak++; caught++; glow=1;
-    score+=(t==='gold'?5:1)*mult();
+    score+=(t==='gold'?5:1)*mult(); meta.total++; q('caught',1); q('streak',streak,1); if(t==='gold') q('gold',1);
     burst(it.x,it.y,t==='gold'?'#fff3b0':T.fly,t==='gold'?18:9);
     if(t==='gold') seq([660,880,1320]); else tone(520+Math.min(streak,20)*25,.12,'sine',.12);
-    if(level()>lv){toastTxt='Уровень '+level(); toast=1.8; setTimeout(()=>seq([523,659,784],'triangle'),150)}
+    if(level()>lv){toastTxt='Уровень '+level(); toast=1.8; setTimeout(()=>seq([523,659,784],'triangle'),150); q('level',level(),1)}
     vib(12);
   } else if(t==='heart'){
     lives=Math.min(3,lives+1); burst(it.x,it.y,'#ff5a6e',14); seq([523,784]); vib(20);
   } else if(t==='slow'){
-    slow=5; burst(it.x,it.y,'#6fd3ff',14); tone(700,.45,'sine',.12,180); vib(20);
+    slow=5; q('slow',1); burst(it.x,it.y,'#6fd3ff',14); tone(700,.45,'sine',.12,180); vib(20);
   }
   ui();
 }
@@ -278,6 +334,7 @@ function draw(){
   }
   ctx.globalAlpha=1;
   /* банка */
+  if(opt.skin>0) drawSkin(); else {
   const jy=H-70, hw=jar.w/2, x=jar.x;
   ctx.save(); ctx.beginPath();
   ctx.moveTo(x-hw,jy); ctx.lineTo(x+hw,jy); ctx.lineTo(x+hw*.8,jy+50);
@@ -292,6 +349,7 @@ function draw(){
   ctx.strokeStyle=T.jar; ctx.lineWidth=3; ctx.beginPath();
   ctx.moveTo(x-hw,jy); ctx.lineTo(x-hw*.8,jy+50); ctx.quadraticCurveTo(x,jy+60,x+hw*.8,jy+50); ctx.lineTo(x+hw,jy); ctx.stroke();
   ctx.fillStyle=T.jar; ctx.fillRect(x-hw-4,jy-6,jar.w+8,8);
+  }
   if(hurt>0){ctx.fillStyle='rgba(220,60,60,'+Math.min(.4,hurt*1.3)+')'; ctx.fillRect(0,0,W,H)}
   if(toast>0){
     ctx.globalAlpha=Math.min(1,toast); ctx.fillStyle=T.ink; ctx.font='700 34px system-ui,sans-serif';
@@ -315,8 +373,9 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='p
 $('pz').addEventListener('click',pause);
 $('btn').addEventListener('click',()=>state==='pause'?resume():start());
 if(best>0) $('text').textContent+=' Твой рекорд: '+best+'.';
-refreshOpts(); resize(); readTheme(); ui(); requestAnimationFrame(loop);
+loadMeta(); refreshOpts(); resize(); readTheme(); ui(); requestAnimationFrame(loop);
 if('serviceWorker' in navigator) addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 </script>
 </body>
 </html>
+
